@@ -53,8 +53,8 @@ jobs:
 
       - name: build and publish package on NPM
         run: |
-          git config --global user.email "loise.fenoll@ynov.com"
-          git config --global user.name "Loise Fenoll"
+          git config --global user.email "kylian.broccolichi@ynov.com"
+          git config --global user.name "Kylian Broccolichi"
           npm run build-npm
           npm version patch
           npm publish
