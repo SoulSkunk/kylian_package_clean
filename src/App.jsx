@@ -168,6 +168,12 @@ function App() {
           onClose={closeToaster}
         />
       </form>
+
+      <div style={{ marginTop: '20px', textAlign: 'center' }}>
+        <a href="https://github.com/SoulSkunk/kylian_package_clean#readme" target="_blank" rel="noreferrer" style={{ color: '#007BFF', textDecoration: 'none', fontSize: '14px' }}>
+          Consulter la documentation (README)
+        </a>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,11 @@
+Lien du repository GitHub public :
+https://github.com/SoulSkunk/kylian_package_clean
+
+Lien du projet déployé sur GitHub Pages :
+https://soulskunk.github.io/kylian_package_clean/
+
+Lien vers le package NPM public :
+https://www.npmjs.com/package/kylian_package_clean
+
+Lien vers le rapport de couverture Codecov public :
+https://app.codecov.io/gh/SoulSkunk/kylian_package_clean
