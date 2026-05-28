@@ -14,7 +14,7 @@
   "license": "ISC",
   "author": "Kylian",
   "type": "module",
-  "main": "src/App.jsx",
+  "main": "dist/main.js",
   "keywords": [
     "react",
     "ci/cd",
@@ -23,7 +23,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build-npm": "vite build",
+    "build-npm": "NODE_ENV=production && rm -rf dist && mkdir dist && npx babel src --out-dir dist --copy-files",
+    "build-npm-win": "SET NODE_ENV=production && rm -rf dist && mkdir dist && npx babel src --out-dir dist --copy-files",
     "lint": "eslint .",
     "test": "vitest run --coverage",
     "preview": "vite preview"
@@ -33,6 +34,9 @@
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@babel/cli": "^7.29.7",
+    "@babel/core": "^7.29.7",
+    "@babel/plugin-transform-react-jsx": "^7.29.7",
     "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.3.2",

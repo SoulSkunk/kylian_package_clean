@@ -51,60 +51,15 @@ jobs:
       - name: Authenticate with npm
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
-      - name: Bump package version automatically
+      - name: build and publish package on NPM
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          if [[ "$COMMIT_MSG" == *"minor"* || "$COMMIT_MSG" == *"Minor"* ]]; then
-            BUMP_TYPE="minor"
-          elif [[ "$COMMIT_MSG" == *"major"* || "$COMMIT_MSG" == *"Major"* ]]; then
-            BUMP_TYPE="major"
-          else
-            BUMP_TYPE="patch"
-          fi
-          
-          npm --no-git-tag-version version $BUMP_TYPE
-          git add package.json package-lock.json || true
-          git commit -m "chore: bump version ($BUMP_TYPE) [skip ci]"
+          git config --global user.email "loise.fenoll@ynov.com"
+          git config --global user.name "Loise Fenoll"
+          npm run build-npm
+          npm version patch
+          npm publish
+          git add .
+          git commit -m "updated version"
           git push
-
-      - name: Publish package on NPM
-        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact for GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          # Upload entire repository
-          path: dist
-
-  # Deploy job
-  deploy_pages:
-    # Deploy to the github-pages environment
-    environment:
-      name: github-pages
-      url: ${{steps.deployment.outputs.page_url}}
-    runs-on: ubuntu-latest
-
-    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
-    permissions:
-      pages: write # to deploy to Pages
-      id-token: write # to verify the deployment originates from an appropriate source
-
-    # Add a dependency to the build job
-    needs: build_test
-    # Specify runner + deployment step
-    steps:
-      #  - name: Set env
-      #    run: |
-      #      npm i -g semver
-      #      echo "GITHUB_VERSION_BUILD=$(echo $(semver 0.1.1 -i prerelease --preid ${{github.run_id}}-${{github.run_number}}-${{github.run_attempt}}))" >> $GITHUB_ENV
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
