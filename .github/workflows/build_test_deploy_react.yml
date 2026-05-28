@@ -1,0 +1,110 @@
+name: Build, Test and Deploy React Application
+
+on:
+  push:
+    branches:
+      - main
+  repository_dispatch:
+    types: [dispatch-event]
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build_test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+      pages: write
+      id-token: write
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          registry-url: "https://registry.npmjs.org"
+      - name: npm ci and test
+        run: |
+          npm ci
+          npm test
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+
+
+      - name: Build application
+        run: npm run build
+
+      - name: Authenticate with npm
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Bump package version automatically
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if [[ "$COMMIT_MSG" == *"minor"* || "$COMMIT_MSG" == *"Minor"* ]]; then
+            BUMP_TYPE="minor"
+          elif [[ "$COMMIT_MSG" == *"major"* || "$COMMIT_MSG" == *"Major"* ]]; then
+            BUMP_TYPE="major"
+          else
+            BUMP_TYPE="patch"
+          fi
+          
+          npm --no-git-tag-version version $BUMP_TYPE
+          git add package.json package-lock.json || true
+          git commit -m "chore: bump version ($BUMP_TYPE) [skip ci]"
+          git push
+
+      - name: Publish package on NPM
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository
+          path: dist
+
+  # Deploy job
+  deploy_pages:
+    # Deploy to the github-pages environment
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    runs-on: ubuntu-latest
+
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      pages: write # to deploy to Pages
+      id-token: write # to verify the deployment originates from an appropriate source
+
+    # Add a dependency to the build job
+    needs: build_test
+    # Specify runner + deployment step
+    steps:
+      #  - name: Set env
+      #    run: |
+      #      npm i -g semver
+      #      echo "GITHUB_VERSION_BUILD=$(echo $(semver 0.1.1 -i prerelease --preid ${{github.run_id}}-${{github.run_number}}-${{github.run_attempt}}))" >> $GITHUB_ENV
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

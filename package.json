@@ -1,0 +1,53 @@
+{
+  "name": "kylian_package_clean",
+  "version": "1.0.0",
+  "private": false,
+  "description": "first package",
+  "homepage": "https://github.com/SoulSkunk/kylian_package_clean#readme",
+  "bugs": {
+    "url": "https://github.com/SoulSkunk/kylian_package_clean/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SoulSkunk/kylian_package_clean.git"
+  },
+  "license": "ISC",
+  "author": "Kylian",
+  "type": "module",
+  "main": "src/App.jsx",
+  "keywords": [
+    "react",
+    "ci/cd",
+    "utils"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build-npm": "vite build",
+    "lint": "eslint .",
+    "test": "vitest run --coverage",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "jsdom": "^22.0.0",
+    "react-test-renderer": "^19.2.5",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
+  }
+}

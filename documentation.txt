@@ -1,0 +1,34 @@
+Projet React: formulaire d'inscription individuel
+
+Description:
+Ce projet montre un petit formulaire React qui permet à un utilisateur de s'enregistrer avec nom, prénom, mail, date de naissance, ville et code postal.
+
+Fonctionnalités:
+- Vérification du prénom et du nom avec un format texte valide.
+- Vérification de l'adresse email au format standard.
+- Vérification de la date de naissance pour bloquer les utilisateurs de moins de 18 ans.
+- Vérification du code postal au format français à 5 chiffres.
+- Sauvegarde du formulaire dans le localStorage après validation.
+
+Structure des fichiers:
+- src/App.jsx: composant principal avec le formulaire et le rendu.
+- src/validators.js: fonctions de validation séparées pour les tests unitaires.
+- src/validators.test.js: tests unitaires des fonctions de validation.
+- src/App.test.jsx: tests d'intégration du formulaire React.
+- src/main.test.jsx: test de rendu principal pour couvrir main.jsx.
+
+Instructions d'installation:
+1. Ouvrir un terminal dans le dossier du projet.
+2. Exécuter `npm install` pour installer les dépendances.
+3. Exécuter `npm test` pour lancer la suite de tests.
+
+Validation et tests:
+- Tous les champs sont testés pour les cas valides et invalides.
+- Le formulaire doit afficher des messages d'erreur clairs en cas de données incorrectes.
+- Le localStorage est vérifié après un envoi valide.
+- La couverture est attendue à 100% sur les fichiers applicatifs (App.jsx, validators.js, module.js, main.jsx).
+
+Notes:
+- La validation est centralisée dans `src/validators.js` pour garder le composant React propre.
+- Le formulaire n'envoie pas de donnée vers un serveur externe; tout est stocké dans le navigateur.
+- Les messages d'erreur sont affichés juste sous chaque champ invalidé.
