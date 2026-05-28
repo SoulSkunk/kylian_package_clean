@@ -56,7 +56,7 @@ jobs:
           git config --global user.email "kylian.broccolichi@ynov.com"
           git config --global user.name "Kylian Broccolichi"
           npm run build-npm
-          npm version patch
+          npm version patch --no-git-tag-version
           npm publish
           git add .
           git commit -m "updated version"
