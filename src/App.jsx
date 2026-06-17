@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import { validateForm } from "./validators";
 import { Toaster } from "./Toaster";
+import UserCount from "./UserCount";
 
 function App() {
   const [values, setValues] = useState({
@@ -70,6 +71,7 @@ function App() {
 
   return (
     <div>
+      <UserCount />
       <h1>Formulaire d'inscription</h1>
       <form onSubmit={handleSubmit} data-testid="registration-form">
         <div>

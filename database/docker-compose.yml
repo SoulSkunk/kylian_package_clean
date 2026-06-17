@@ -1,20 +1,19 @@
 services:
   db:
     build:
-      context: ./database
+      context: .
       dockerfile: Dockerfile
     image: migration_mysql
     container_name: bdd-projet
     restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
-      - MYSQL_DATABASE=ynov_ci
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     ports:
       - "3306:3306"
     networks:
       - network-db
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,15 +30,10 @@ services:
         condition: service_healthy
     networks:
       - network-db
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
   server:
     build:
-      context: ./database/server
+      context: ./server
       dockerfile: Dockerfile
     image: server_python
     container_name: server-api
@@ -49,7 +43,7 @@ services:
     environment:
       - MYSQL_DATABASE=ynov_ci
       - MYSQL_USER=root
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_HOST=db
     depends_on:
       db:
@@ -62,28 +56,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-
-  react:
-    image: react
-    build: 
-      context: .
-      dockerfile: DockerfileReact
-    ports:
-      - "3000:3000"
-    environment:
-      - VITE_SERVER_PORT=8000
-    volumes:
-      - .:/app
-      - /app/node_modules
-    depends_on:
-      - server
-    networks:
-      - network-db
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/kylian_package_clean/ || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
 networks:
   network-db:
