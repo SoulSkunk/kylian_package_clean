@@ -37,6 +37,12 @@ jobs:
           npm ci
           npm test
 
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+        with:
+          build: npm run build
+          start: npm run preview
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:

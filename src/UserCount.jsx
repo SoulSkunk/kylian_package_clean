@@ -1,24 +1,28 @@
-import axios from 'axios';
 import { useState, useEffect } from 'react';
 
 function UserCount() {
-  const port = import.meta.env.VITE_SERVER_PORT || 8000;
-  let [usersCount, setUsersCount] = useState(0);
+  const [usersCount, setUsersCount] = useState(0);
 
   useEffect(() => {
-    async function countUsers() {
-      try {
-        const api = axios.create({
-          baseURL: `http://localhost:${port}`
-        });
-        const response = await api.get('/users');
-        setUsersCount(response.data.utilisateurs.length);
-      } catch (error) {
-        console.error(error);
+    function updateCount() {
+      const registration = localStorage.getItem('registration');
+      if (registration) {
+        setUsersCount(1);
+      } else {
+        setUsersCount(0);
       }
     }
-    countUsers();
-  }, [port]);
+    
+    updateCount();
+    
+    // Optional: listen to custom event to update in real-time if necessary,
+    // though the prompt just says 'récupérer la liste des utilisateurs inscrits depuis le localstorage'
+    window.addEventListener('storage', updateCount);
+    
+    return () => {
+      window.removeEventListener('storage', updateCount);
+    };
+  }, []);
 
   return (
     <div style={{ textAlign: "center", marginBottom: "20px" }}>
