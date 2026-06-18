@@ -1,74 +1,83 @@
 describe('Registration Form E2E Tests', () => {
   beforeEach(() => {
-    // Navigate to the base URL before each test
     cy.visit('/');
   });
 
-  it('Scenario 1: No user registered -> add user -> 1 user registered', () => {
-    // 1. Vider le localstorage
-    cy.clearLocalStorage();
-    cy.reload(); // Reload to ensure state is fresh
+  describe('Tests classiques', () => {
+    it('Scenario 1: Inscription réussie', () => {
+      // On intercepte la requête POST pour simuler la réussite sans toucher à la vraie DB
+      cy.intercept('POST', '**/users', {
+        statusCode: 200,
+        body: { id: 1, message: "User created successfully" }
+      }).as('createUser');
 
-    // 2. Aucun utilisateur inscrit
-    cy.contains('0 user(s) already registered').should('be.visible');
+      cy.get('input[name="firstName"]').type('Jean');
+      cy.get('input[name="lastName"]').type('Dupont');
+      cy.get('input[name="email"]').type('jean.dupont@example.com');
+      cy.get('input[name="birthdate"]').type('1990-01-01');
+      cy.get('input[name="city"]').type('Paris');
+      cy.get('input[name="zipcode"]').type('75000');
+      
+      cy.get('[data-cy="btn-sync"]').click();
 
-    // 3. Navigation vers la page de formulaire / Ajout d'un nouvel utilisateur sans erreur
-    cy.get('input[name="firstName"]').type('Jean');
-    cy.get('input[name="lastName"]').type('Dupont');
-    cy.get('input[name="email"]').type('jean.dupont@example.com');
-    cy.get('input[name="birthdate"]').type('1990-01-01');
-    cy.get('input[name="city"]').type('Paris');
-    cy.get('input[name="zipcode"]').type('75000');
-    
-    // Le bouton doit être activé
-    cy.get('button[type="submit"]').should('not.be.disabled').click();
+      cy.wait('@createUser').its('response.statusCode').should('eq', 200);
+      cy.contains('Inscription enregistrée avec succès').should('be.visible');
+    });
 
-    // Vérification du message de succès
-    cy.contains('Inscription enregistrée avec succès').should('be.visible');
+    it('Scenario 2: Erreur de validation (Prénom trop court)', () => {
+      cy.get('input[name="firstName"]').type('A');
+      cy.get('input[name="lastName"]').type('B');
+      cy.get('input[name="email"]').type('test@example.com');
+      cy.get('input[name="birthdate"]').type('2010-01-01');
+      cy.get('input[name="city"]').type('L');
+      cy.get('input[name="zipcode"]').type('123');
 
-    // 4. Navigation vers la page d'accueil (ou rechargement pour lire le localStorage) / Un utilisateur inscrit
-    cy.reload();
-    cy.contains('1 user(s) already registered').should('be.visible');
+      cy.get('[data-cy="btn-sync"]').click();
+
+      cy.contains('Veuillez corriger les erreurs du formulaire').should('be.visible');
+    });
   });
 
-  it('Scenario 2: 1 user registered -> add user with error -> still 1 user registered', () => {
-    // 1. Initialiser avec 1 utilisateur inscrit
-    cy.window().then((win) => {
-      win.localStorage.setItem('registration', JSON.stringify({
-        firstName: 'Alice',
-        lastName: 'Smith',
-        email: 'alice@example.com',
-        birthdate: '1995-05-05',
-        city: 'Lyon',
-        zipcode: '69000'
-      }));
+  describe('Tests en mode Offline', () => {
+    it('devrait se comporter correctement', () => {
+      if (!Cypress.env('offline')) {
+        cy.intercept('POST', '**/users', { statusCode: 200, body: {} }).as('syncRequest');
+        
+        // Remplir un formulaire valide avant de cliquer sinon le bouton est désactivé
+        cy.get('input[name="firstName"]').type('Jean');
+        cy.get('input[name="lastName"]').type('Dupont');
+        cy.get('input[name="email"]').type('jean.dupont@example.com');
+        cy.get('input[name="birthdate"]').type('1990-01-01');
+        cy.get('input[name="city"]').type('Paris');
+        cy.get('input[name="zipcode"]').type('75000');
+
+        cy.get('[data-cy="btn-sync"]').click();
+        cy.wait('@syncRequest').then((interception) => {
+          expect(interception.response.statusCode).to.equal(200);
+          cy.contains('Inscription enregistrée avec succès').should('be.visible');
+        });
+      }
     });
-    cy.reload(); // Reload to reflect local storage
 
-    // Vérifier qu'il y a 1 utilisateur inscrit
-    cy.contains('1 user(s) already registered').should('be.visible');
+    it('devrait afficher un message d\'erreur quand le réseau est coupé', () => {
+      if (Cypress.env('offline')) {
+        cy.log('Mode offline activé !');
+        // On intercepte pour forcer une erreur 500
+        cy.intercept('POST', '**/users', { statusCode: 500 }).as('syncRequest');
+        
+        cy.get('input[name="firstName"]').type('Jean');
+        cy.get('input[name="lastName"]').type('Dupont');
+        cy.get('input[name="email"]').type('jean.dupont@example.com');
+        cy.get('input[name="birthdate"]').type('1990-01-01');
+        cy.get('input[name="city"]').type('Paris');
+        cy.get('input[name="zipcode"]').type('75000');
 
-    // 2. Ajout d'un nouvel utilisateur avec erreur (ex: prénom trop court)
-    cy.get('input[name="firstName"]').type('A');
-    cy.get('input[name="lastName"]').type('B');
-    cy.get('input[name="email"]').type('test@example.com'); // Valid email to bypass HTML5 validation
-    cy.get('input[name="birthdate"]').type('2010-01-01'); // Mineur
-    cy.get('input[name="city"]').type('L'); // Trop court
-    cy.get('input[name="zipcode"]').type('123'); // Code postal invalide
-
-    // Soumission du formulaire (même si bouton disabled, on force le submit ou on valide les erreurs visuelles)
-    // Actually, the submit button is disabled by 'isFormValid()' logic unless all fields are filled.
-    // If it's disabled, we can't click it. But the instructions say "Ajout d'un nouvel utilisateur avec erreur"
-    // Wait, 'isFormValid()' only checks if fields are NOT EMPTY.
-    // Let's make sure the button is not disabled by filling everything.
-    
-    cy.get('button[type="submit"]').should('not.be.disabled').click();
-
-    // Vérification de l'erreur
-    cy.contains('Veuillez corriger les erreurs du formulaire').should('be.visible');
-
-    // 3. Toujours 1 utilisateur inscrit
-    cy.reload();
-    cy.contains('1 user(s) already registered').should('be.visible');
+        cy.get('[data-cy="btn-sync"]').click();
+        cy.wait('@syncRequest').then((interception) => {
+          expect(interception.response.statusCode).to.equal(500);
+          cy.contains("Erreur lors de l'enregistrement en base de données").should('be.visible');
+        });
+      }
+    });
   });
 });

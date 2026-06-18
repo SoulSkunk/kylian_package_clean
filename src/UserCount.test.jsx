@@ -1,20 +1,15 @@
 import { render, screen } from "@testing-library/react";
-import "@testing-library/jest-dom";
+import { describe, it, expect } from "vitest";
 import UserCount from "./UserCount";
 
-describe("UserCount component", () => {
-  beforeEach(() => {
-    localStorage.clear();
+describe("UserCount", () => {
+  it("renders the correct number of users", () => {
+    render(<UserCount usersCount={5} />);
+    expect(screen.getByTestId("user-count")).toHaveTextContent("5 user(s) already registered");
   });
 
-  it("displays 0 users when localStorage is empty", () => {
+  it("renders 0 if usersCount is not provided", () => {
     render(<UserCount />);
-    expect(screen.getByText("0 user(s) already registered")).toBeInTheDocument();
-  });
-
-  it("displays 1 user when localStorage has registration data", () => {
-    localStorage.setItem("registration", JSON.stringify({ firstName: "Alice" }));
-    render(<UserCount />);
-    expect(screen.getByText("1 user(s) already registered")).toBeInTheDocument();
+    expect(screen.getByTestId("user-count")).toHaveTextContent("0 user(s) already registered");
   });
 });

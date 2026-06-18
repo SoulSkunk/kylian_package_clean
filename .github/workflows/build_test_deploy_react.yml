@@ -37,11 +37,164 @@ jobs:
           npm ci
           npm test
 
-      - name: Cypress run
+      - name: Cypress run (Online)
         uses: cypress-io/github-action@v6
         with:
           build: npm run build
           start: npm run preview
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Cypress run (Offline)
+        uses: cypress-io/github-action@v6
+        with:
+          build: npm run build
+          start: npm run preview
+        env:
+          CYPRESS_offline: true
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+      - name: Build the stack
+        run: docker compose up -d
+      - name: Build application (Vite)
+        run: npm run build
+
+      - name: Upload artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Authenticate with npm
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: build and publish package on NPM
+        run: |
+          git config --global user.email "kylian.broccolichi@ynov.com"
+          git config --global user.name "Kylian Broccolichi"
+          npm run build-npm
+          npm version patch --no-git-tag-version
+          npm publish
+          git add .
+          git commit -m "updated version" || true
+          git push
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  deploy_pages:
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    needs: build_test
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  build-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Frontend
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/frontend -f DockerfileReact .
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/frontend
+
+      - name: Build and push Backend
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/backend -f database/server/Dockerfile database/server
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/backend
+
+  test-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start docker compose
+        run: docker compose up -d
+
+      - name: List containers
+        run: docker ps
+
+      - name: Wait for services to be healthy
+        run: sleep 35
+
+      - name: Check health of all services
+        run: |
+          docker inspect --format "{{json .State.Health.Status }}" bdd-projet | jq -e '. == "healthy"'
+name: Build, Test and Deploy React Application
+
+on:
+  push:
+    branches:
+      - main
+  repository_dispatch:
+    types: [dispatch-event]
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build_test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+      pages: write
+      id-token: write
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          registry-url: "https://registry.npmjs.org"
+      - name: npm ci and test
+        run: |
+          npm ci
+          npm test
+
+      - name: Cypress run (Online)
+        uses: cypress-io/github-action@v6
+        with:
+          build: npm run build
+          start: npm run preview
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Cypress run (Offline)
+        uses: cypress-io/github-action@v6
+        with:
+          build: npm run build
+          start: npm run preview
+        env:
+          CYPRESS_offline: true
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
