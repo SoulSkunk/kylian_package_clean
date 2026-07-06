@@ -1,13 +1,13 @@
 ---
 - name: Déploiement de la stack applicative
   hosts: app_hosts
+  become: true
   vars:
     project_dir: "/home/ubuntu/app"
 
   tasks:
     # 1. Installation de Docker et Docker Compose
     - name: Installation des paquets Docker
-      become: true
       apt:
         update_cache: yes
         name:
@@ -17,18 +17,13 @@
         state: present
 
     - name: Ajout de l'utilisateur au groupe docker
-      become: true
       user:
         name: ubuntu
         groups: docker
         append: yes
 
-    - name: Réinitialisation de la connexion SSH pour appliquer le groupe Docker
-      meta: reset_connection
-
     # 2. Configuration du registre insecure (HTTP)
     - name: Configuration du daemon Docker pour le registre HTTP
-      become: true
       copy:
         content: |
           {
@@ -40,7 +35,6 @@
         mode: '0644'
 
     - name: Redémarrage de Docker
-      become: true
       systemd:
         name: docker
         state: restarted
@@ -103,10 +97,6 @@
         chdir: "{{ project_dir }}"
 
     # 7. Vérification
-    - name: Attente du démarrage des services
-      pause:
-        seconds: 30
-
     - name: Récupération du statut des conteneurs
       command: docker compose ps
       args:
