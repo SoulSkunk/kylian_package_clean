@@ -24,6 +24,11 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+variable "run_id" {
+  type    = string
+  default = "1"
+}
+
 # 2. Création de la clé SSH
 resource "tls_private_key" "pk" {
   algorithm = "RSA"
@@ -31,13 +36,13 @@ resource "tls_private_key" "pk" {
 }
 
 resource "aws_key_pair" "generated_key" {
-  key_name   = "app-key-terraform"
+  key_name   = "app-key-terraform-${var.run_id}"
   public_key = tls_private_key.pk.public_key_openssh
 }
 
 # 3. Security Group — Ports : SSH, HTTP, Frontend, Backend, Adminer
 resource "aws_security_group" "app_sg" {
-  name        = "app-sg"
+  name        = "app-sg-${var.run_id}"
   description = "Allow SSH, HTTP, Frontend (3000), Backend (8000), Adminer (8080)"
 
   ingress {
