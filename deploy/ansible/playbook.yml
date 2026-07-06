@@ -1,0 +1,112 @@
+---
+- name: Déploiement de la stack applicative
+  hosts: app_hosts
+  become: true
+  vars:
+    project_dir: "/home/ubuntu/app"
+
+  tasks:
+    # 1. Installation de Docker et Docker Compose
+    - name: Installation des paquets Docker
+      apt:
+        update_cache: yes
+        name:
+          - docker.io
+          - docker-compose-v2
+          - curl
+        state: present
+
+    - name: Ajout de l'utilisateur au groupe docker
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    # 2. Configuration du registre insecure (HTTP)
+    - name: Configuration du daemon Docker pour le registre HTTP
+      copy:
+        content: |
+          {
+            "insecure-registries": ["{{ registry_ip }}:5000"]
+          }
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Redémarrage de Docker
+      systemd:
+        name: docker
+        state: restarted
+        daemon_reload: yes
+
+    - name: Attente que Docker soit prêt
+      command: docker info
+      register: docker_info
+      retries: 5
+      delay: 5
+      until: docker_info.rc == 0
+
+    # 3. Préparation du dossier projet
+    - name: Création du dossier projet
+      file:
+        path: "{{ project_dir }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    # 4. Authentification au registre Docker privé
+    - name: Login au registre Docker privé
+      command: docker login {{ registry_ip }}:5000 -u {{ registry_user }} -p {{ registry_password }}
+
+    # 5. Copie des fichiers de déploiement
+    - name: Copie du docker-compose.prod.yml
+      copy:
+        src: docker-compose.prod.yml
+        dest: "{{ project_dir }}/docker-compose.yml"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Création du fichier .env
+      copy:
+        content: |
+          REGISTRY_IP={{ registry_ip }}
+          MYSQL_ROOT_PASSWORD={{ mysql_root_password }}
+        dest: "{{ project_dir }}/.env"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    # 6. Déploiement de la stack
+    - name: Stop de l'ancienne stack (si existante)
+      command: docker compose down --remove-orphans
+      args:
+        chdir: "{{ project_dir }}"
+      ignore_errors: yes
+
+    - name: Pull des images depuis le registre privé
+      command: docker compose pull
+      args:
+        chdir: "{{ project_dir }}"
+
+    - name: Démarrage de la stack applicative
+      command: docker compose up -d
+      args:
+        chdir: "{{ project_dir }}"
+
+    # 7. Vérification
+    - name: Attente du démarrage des services
+      pause:
+        seconds: 30
+
+    - name: Récupération du statut des conteneurs
+      command: docker compose ps
+      args:
+        chdir: "{{ project_dir }}"
+      register: compose_ps_output
+
+    - name: Affichage du statut final
+      debug:
+        msg: "{{ compose_ps_output.stdout_lines }}"

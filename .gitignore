@@ -26,3 +26,19 @@ docs
 *.njsproj
 *.sln
 *.sw?
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+
+# SSH Keys
+*.pem
+
+# Temporary files
+tmpry/
+
+# Environment files
+.env
+!.env.sample

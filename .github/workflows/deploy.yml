@@ -1,0 +1,167 @@
+name: Deploy Full Stack Application
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # ============================================================
+  # JOB 1 : Build des images Docker et push sur le registre privé
+  # ============================================================
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configuration Docker pour le registre HTTP (insecure)
+        run: |
+          echo '{"insecure-registries": ["${{ secrets.REGISTRY_IP }}:5000"]}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+
+      - name: Login au registre Docker privé
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_IP }}:5000 -u ${{ secrets.REGISTRY_USER }} --password-stdin
+
+      - name: Build et push de l'image Frontend
+        run: |
+          docker build -t ${{ secrets.REGISTRY_IP }}:5000/frontend:latest -f DockerfileReact .
+          docker push ${{ secrets.REGISTRY_IP }}:5000/frontend:latest
+
+      - name: Build et push de l'image Backend
+        run: |
+          docker build -t ${{ secrets.REGISTRY_IP }}:5000/backend:latest -f database/server/Dockerfile database/server
+          docker push ${{ secrets.REGISTRY_IP }}:5000/backend:latest
+
+      - name: Build et push de l'image Database
+        run: |
+          docker build -t ${{ secrets.REGISTRY_IP }}:5000/database:latest -f database/Dockerfile database
+          docker push ${{ secrets.REGISTRY_IP }}:5000/database:latest
+
+      - name: Vérification du catalogue du registre
+        run: |
+          curl -s -u ${{ secrets.REGISTRY_USER }}:${{ secrets.REGISTRY_PASSWORD }} http://${{ secrets.REGISTRY_IP }}:5000/v2/_catalog
+          echo ""
+          echo "✅ Images poussées avec succès sur le registre privé"
+
+  # ============================================================
+  # JOB 2 : Provisionnement Terraform + Configuration Ansible
+  # ============================================================
+  deploy-infra:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    outputs:
+      app_ip: ${{ steps.tf-output.outputs.app_ip }}
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      # --- Terraform ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: deploy/terraform
+        run: terraform init
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Terraform Apply
+        working-directory: deploy/terraform
+        run: terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Récupération des outputs Terraform
+        id: tf-output
+        working-directory: deploy/terraform
+        run: |
+          echo "app_ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+          terraform output -raw private_key_pem > ../../deploy/ansible/app-key.pem
+          chmod 600 ../../deploy/ansible/app-key.pem
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # --- Bridge CI/CD : Génération de l'inventaire Ansible ---
+      - name: Génération dynamique de l'inventaire Ansible
+        run: |
+          cat > deploy/ansible/inventory.ini << EOF
+          [app_hosts]
+          ${{ steps.tf-output.outputs.app_ip }}
+
+          [app_hosts:vars]
+          ansible_user=ubuntu
+          ansible_ssh_private_key_file=app-key.pem
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          EOF
+          echo "📋 Inventaire Ansible généré :"
+          cat deploy/ansible/inventory.ini
+
+      # --- Ansible ---
+      - name: Installation d'Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: Attente que l'EC2 soit prête (SSH)
+        run: |
+          echo "⏳ Attente de la disponibilité SSH sur ${{ steps.tf-output.outputs.app_ip }}..."
+          for i in $(seq 1 30); do
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -i deploy/ansible/app-key.pem ubuntu@${{ steps.tf-output.outputs.app_ip }} "echo ready" 2>/dev/null; then
+              echo "✅ SSH disponible !"
+              break
+            fi
+            echo "  Tentative $i/30..."
+            sleep 10
+          done
+
+      - name: Copie du docker-compose.prod.yml pour Ansible
+        run: cp deploy/docker-compose.prod.yml deploy/ansible/docker-compose.prod.yml
+
+      - name: Exécution du playbook Ansible
+        working-directory: deploy/ansible
+        run: |
+          ansible-playbook -i inventory.ini playbook.yml \
+            -e "registry_ip=${{ secrets.REGISTRY_IP }}" \
+            -e "registry_user=${{ secrets.REGISTRY_USER }}" \
+            -e "registry_password=${{ secrets.REGISTRY_PASSWORD }}" \
+            -e "mysql_root_password=${{ secrets.MYSQL_ROOT_PASSWORD }}"
+
+  # ============================================================
+  # JOB 3 : Validation post-déploiement
+  # ============================================================
+  validate:
+    runs-on: ubuntu-latest
+    needs: deploy-infra
+    steps:
+      - name: Attente du démarrage complet des services
+        run: sleep 60
+
+      - name: Test du Frontend (port 3000)
+        run: |
+          echo "🧪 Test du Frontend..."
+          curl -f --retry 5 --retry-delay 10 --retry-all-errors http://${{ needs.deploy-infra.outputs.app_ip }}:3000/kylian_package_clean/
+          echo ""
+          echo "✅ Frontend accessible !"
+
+      - name: Test du Backend API (port 8000)
+        run: |
+          echo "🧪 Test du Backend API..."
+          curl -f --retry 5 --retry-delay 10 --retry-all-errors http://${{ needs.deploy-infra.outputs.app_ip }}:8000/users
+          echo ""
+          echo "✅ Backend API accessible !"
+
+      - name: Résumé du déploiement
+        run: |
+          echo "=========================================="
+          echo "  🚀 DÉPLOIEMENT RÉUSSI !"
+          echo "=========================================="
+          echo ""
+          echo "  Frontend : http://${{ needs.deploy-infra.outputs.app_ip }}:3000"
+          echo "  Backend  : http://${{ needs.deploy-infra.outputs.app_ip }}:8000"
+          echo "  Adminer  : http://${{ needs.deploy-infra.outputs.app_ip }}:8080"
+          echo "  Registre : http://${{ secrets.REGISTRY_IP }}:5000"
+          echo ""
+          echo "=========================================="

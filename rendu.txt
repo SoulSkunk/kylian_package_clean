@@ -9,3 +9,15 @@ https://www.npmjs.com/package/kylian_package_clean
 
 Lien vers le rapport de couverture Codecov public :
 https://app.codecov.io/gh/SoulSkunk/kylian_package_clean
+
+Adresse IP publique du Registre Docker privé :
+35.180.174.97
+  - Registry API : http://35.180.174.97:5000
+  - Registry UI  : http://35.180.174.97:80
+
+Adresse IP publique du projet applicatif :
+(Générée dynamiquement par le workflow deploy.yml via Terraform — voir la sortie du job "validate")
+
+Identifiants de connexion au registre Docker :
+  - Utilisateur : admin
+  - Mot de passe : admin123

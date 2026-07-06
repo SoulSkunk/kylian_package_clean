@@ -1,0 +1,70 @@
+services:
+  db:
+    image: ${REGISTRY_IP}:5000/database:latest
+    container_name: bdd-projet
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=ynov_ci
+    ports:
+      - "3306:3306"
+    networks:
+      - network-db
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - network-db
+
+  server:
+    image: ${REGISTRY_IP}:5000/backend:latest
+    container_name: server-api
+    restart: on-failure:5
+    ports:
+      - "8000:8000"
+    environment:
+      - MYSQL_DATABASE=ynov_ci
+      - MYSQL_USER=root
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_HOST=db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - network-db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/users || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  react:
+    image: ${REGISTRY_IP}:5000/frontend:latest
+    container_name: frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_SERVER_PORT=8000
+    depends_on:
+      - server
+    networks:
+      - network-db
+
+networks:
+  network-db:
+    driver: bridge

@@ -1,34 +1,133 @@
-Projet React: formulaire d'inscription individuel
+================================================================================
+                    DOCUMENTATION GLOBALE — ARCHITECTURE CI/CD
+================================================================================
 
-Description:
-Ce projet montre un petit formulaire React qui permet à un utilisateur de s'enregistrer avec nom, prénom, mail, date de naissance, ville et code postal.
+1. DESCRIPTION DU PROJET
+=========================
+Application web React (formulaire d'inscription) avec backend Python (FastAPI),
+base de données MySQL, et interface Adminer. Le tout est déployé automatiquement
+via une pipeline CI/CD GitHub Actions sur deux instances AWS EC2 distinctes.
 
-Fonctionnalités:
-- Vérification du prénom et du nom avec un format texte valide.
-- Vérification de l'adresse email au format standard.
-- Vérification de la date de naissance pour bloquer les utilisateurs de moins de 18 ans.
-- Vérification du code postal au format français à 5 chiffres.
-- Sauvegarde du formulaire dans le localStorage après validation.
+2. ARCHITECTURE FINALE
+========================
 
-Structure des fichiers:
-- src/App.jsx: composant principal avec le formulaire et le rendu.
-- src/validators.js: fonctions de validation séparées pour les tests unitaires.
-- src/validators.test.js: tests unitaires des fonctions de validation.
-- src/App.test.jsx: tests d'intégration du formulaire React.
-- src/main.test.jsx: test de rendu principal pour couvrir main.jsx.
+  ┌─────────────────────────────┐       ┌──────────────────────────────┐
+  │   EC2 — REGISTRE DOCKER    │       │   EC2 — APPLICATION          │
+  │   IP : 35.180.174.97       │◄─pull─┤   IP : (dynamique / Terraform)│
+  │                             │       │                              │
+  │   • Registry:2 (port 5000) │       │   • Frontend React  (:3000)  │
+  │   • Registry UI (port 80)  │       │   • Backend FastAPI (:8000)  │
+  │   • Auth: admin / admin123 │       │   • MySQL           (:3306)  │
+  │                             │       │   • Adminer         (:8080)  │
+  └─────────────────────────────┘       └──────────────────────────────┘
+              ▲                                      ▲
+              │ push                                 │ provision + deploy
+              │                                      │
+  ┌───────────┴──────────────────────────────────────┴──┐
+  │               GITHUB ACTIONS (deploy.yml)            │
+  │               Déclenchement : workflow_dispatch      │
+  │                                                      │
+  │   Job 1: build-and-push                              │
+  │     → Build Frontend, Backend, Database              │
+  │     → Push sur le registre privé (HTTP :5000)        │
+  │                                                      │
+  │   Job 2: deploy-infra                                │
+  │     → Terraform : crée EC2 applicative               │
+  │     → Bridge : génère inventory.ini dynamique        │
+  │     → Ansible : configure et déploie la stack        │
+  │                                                      │
+  │   Job 3: validate                                    │
+  │     → curl Frontend (:3000) + Backend (:8000)        │
+  └──────────────────────────────────────────────────────┘
 
-Instructions d'installation:
-1. Ouvrir un terminal dans le dossier du projet.
-2. Exécuter `npm install` pour installer les dépendances.
-3. Exécuter `npm test` pour lancer la suite de tests.
+3. DÉTAIL DES COMPOSANTS
+=========================
 
-Validation et tests:
-- Tous les champs sont testés pour les cas valides et invalides.
-- Le formulaire doit afficher des messages d'erreur clairs en cas de données incorrectes.
-- Le localStorage est vérifié après un envoi valide.
-- La couverture est attendue à 100% sur les fichiers applicatifs (App.jsx, validators.js, module.js, main.jsx).
+3.1 Registre Docker Privé (EC2 #1)
+------------------------------------
+- Provisionné avec : Terraform (registry/main.tf)
+- Configuré avec   : Ansible  (registry/playbook.yml)
+- Conteneurs       : registry:2 + joxit/docker-registry-ui
+- Authentification  : htpasswd (bcrypt) — admin / admin123
+- Ports ouverts     : 22 (SSH), 80 (UI), 5000 (Docker API)
 
-Notes:
-- La validation est centralisée dans `src/validators.js` pour garder le composant React propre.
-- Le formulaire n'envoie pas de donnée vers un serveur externe; tout est stocké dans le navigateur.
-- Les messages d'erreur sont affichés juste sous chaque champ invalidé.
+3.2 Application (EC2 #2)
+--------------------------
+- Provisionné avec : Terraform (deploy/terraform/main.tf) — depuis la pipeline
+- Configuré avec   : Ansible  (deploy/ansible/playbook.yml) — depuis la pipeline
+- Images Docker    : tirées du registre privé
+- Conteneurs       :
+    • bdd-projet  : MySQL avec migrations SQL
+    • server-api  : Backend FastAPI (Python)
+    • frontend    : React (Vite dev server)
+    • adminer     : Interface admin BDD
+- Ports ouverts    : 22, 80, 3000, 8000, 8080
+
+4. PIPELINE CI/CD (deploy.yml)
+===============================
+
+Déclenchement : Manuel (workflow_dispatch) depuis l'onglet Actions de GitHub.
+
+Étapes :
+  1. Build des 3 images Docker (frontend, backend, database)
+  2. Push sur le registre privé AWS (35.180.174.97:5000)
+  3. Terraform init + apply → création de l'EC2 applicative
+  4. Récupération de l'IP et de la clé SSH (outputs Terraform)
+  5. Génération dynamique de l'inventaire Ansible (inventory.ini)
+  6. Exécution du playbook Ansible :
+     - Installation Docker
+     - Configuration du registre insecure
+     - docker login + docker compose pull + up
+  7. Validation post-déploiement : curl sur Frontend et Backend
+
+5. SÉCURITÉ
+=============
+
+Tous les secrets sont stockés dans GitHub Secrets :
+  - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY : credentials AWS
+  - REGISTRY_IP / REGISTRY_USER / REGISTRY_PASSWORD : registre Docker
+  - MYSQL_ROOT_PASSWORD : mot de passe de la base de données
+
+Aucun identifiant n'est codé en dur dans le code source.
+Le fichier .env.sample documente les variables nécessaires.
+
+6. STRUCTURE DES FICHIERS
+===========================
+
+├── .github/workflows/
+│   ├── deploy.yml                  ← Pipeline CI/CD principale
+│   ├── build_test_deploy_react.yml ← Pipeline existante (tests + pages)
+│   ├── build_test.yml
+│   └── build_test_react.yml
+├── deploy/
+│   ├── terraform/
+│   │   └── main.tf                 ← Infra EC2 applicative
+│   ├── ansible/
+│   │   └── playbook.yml            ← Config + déploiement applicatif
+│   └── docker-compose.prod.yml     ← Stack de production
+├── registry/
+│   ├── main.tf                     ← Infra EC2 registre
+│   ├── playbook.yml                ← Config registre Docker
+│   ├── docker-compose.yml          ← Stack registre
+│   └── inventory.ini
+├── database/
+│   ├── Dockerfile                  ← Image MySQL + migrations
+│   ├── server/
+│   │   ├── Dockerfile              ← Image Backend FastAPI
+│   │   └── server.py
+│   └── sqlfiles/                   ← Scripts SQL de migration
+├── DockerfileReact                 ← Image Frontend React
+├── docker-compose.yml              ← Stack de développement local
+├── .env.sample                     ← Liste des secrets nécessaires
+├── rendu.txt                       ← Liens et IPs de rendu
+└── documentation.txt               ← Ce fichier
+
+7. INSTRUCTIONS DE REPRODUCTION
+=================================
+
+  1. Forker/cloner le repository
+  2. Configurer les GitHub Secrets (voir .env.sample)
+  3. Aller dans Actions > "Deploy Full Stack Application"
+  4. Cliquer sur "Run workflow"
+  5. Attendre la fin du workflow (~5-10 minutes)
+  6. Récupérer l'IP de l'application dans les logs du job "validate"
