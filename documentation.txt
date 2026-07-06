@@ -12,12 +12,12 @@ via une pipeline CI/CD GitHub Actions sur deux instances AWS EC2 distinctes.
 ========================
 
   ┌─────────────────────────────┐       ┌──────────────────────────────┐
-  │   EC2 — REGISTRE DOCKER    │       │   EC2 — APPLICATION          │
-  │   IP : 35.180.174.97       │◄─pull─┤   IP : (dynamique / Terraform)│
+  │   EC2 — REGISTRE DOCKER     │       │   EC2 — APPLICATION          │
+  │   IP : 35.180.174.97        │◄─pull─┤   IP : 15.188.52.230         │
   │                             │       │                              │
-  │   • Registry:2 (port 5000) │       │   • Frontend React  (:3000)  │
-  │   • Registry UI (port 80)  │       │   • Backend FastAPI (:8000)  │
-  │   • Auth: admin / admin123 │       │   • MySQL           (:3306)  │
+  │   • Registry:2 (port 5000)  │       │   • Frontend React  (:3000)  │
+  │   • Registry UI (port 80)   │       │   • Backend FastAPI (:8000)  │
+  │   • Auth: admin / admin123  │       │   • MySQL           (:3306)  │
   │                             │       │   • Adminer         (:8080)  │
   └─────────────────────────────┘       └──────────────────────────────┘
               ▲                                      ▲
