@@ -16,7 +16,10 @@ Adresse IP publique du Registre Docker privé :
   - Registry UI  : http://35.180.174.97:80
 
 Adresse IP publique du projet applicatif :
-(Générée dynamiquement par le workflow deploy.yml via Terraform — voir la sortie du job "validate")
+15.188.52.230
+  - Frontend React : http://15.188.52.230:3000
+  - Backend API    : http://15.188.52.230:8000
+  - Adminer        : http://15.188.52.230:8080
 
 Identifiants de connexion au registre Docker :
   - Utilisateur : admin
